@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>שעון הנץ – ספירה לאחור לנץ החמה</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;600;800&display=swap" rel="stylesheet">
+<style>
+  :root{--gold:#ffc861;--ink:#f6efe2;--dim:#b9b2c8;}
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:'Heebo',system-ui,sans-serif;color:var(--ink);
+    background:linear-gradient(180deg,#0b1030 0%,#23194a 45%,#6b2f4f 78%,#d4744a 100%);
+    background-attachment:fixed;min-height:100vh;display:flex;flex-direction:column;
+  }
+  header{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;gap:10px}
+  .brand{font-weight:800;font-size:18px;letter-spacing:.5px}
+  .brand span{color:var(--gold)}
+  button{font-family:inherit;cursor:pointer}
+  .btn{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.22);color:var(--ink);
+       border-radius:999px;padding:8px 14px;font-size:15px}
+  .btn:active{transform:scale(.97)}
+  main{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+       text-align:center;padding:8px 12px 20px;gap:1.6vh}
+  .place{font-size:clamp(20px,5vmin,40px);font-weight:600}
+  .label{font-size:clamp(15px,3.2vmin,26px);color:var(--dim)}
+  .clock{
+    direction:ltr;font-variant-numeric:tabular-nums;font-weight:800;line-height:1;
+    font-size:min(21vw,34vh);letter-spacing:-.02em;color:#fff;
+    text-shadow:0 0 40px rgba(255,200,97,.35);white-space:nowrap;
+  }
+  .clock .sep{color:var(--gold);opacity:.9;padding:0 .02em}
+  .units{direction:rtl;display:flex;justify-content:center;gap:min(13vw,20vh);
+         font-size:clamp(12px,2.6vmin,20px);color:var(--dim);margin-top:-.6vh}
+  .rise{font-size:clamp(17px,4vmin,32px)}
+  .rise b{color:var(--gold);font-weight:800;direction:ltr;display:inline-block}
+  .arrived .clock{color:var(--gold);animation:glow 1.2s ease-in-out infinite alternate}
+  @keyframes glow{from{text-shadow:0 0 20px rgba(255,200,97,.3)}to{text-shadow:0 0 70px rgba(255,200,97,.9)}}
+  .note{font-size:12px;color:var(--dim);opacity:.85;padding:0 16px 14px;text-align:center;line-height:1.5}
+
+  /* landscape on phones: hide extras so the clock is huge */
+  @media (orientation:landscape) and (max-height:500px){
+    header{padding:6px 12px}
+    .note,.units{display:none}
+    main{gap:1vh}
+    .clock{font-size:min(19vw,52vh)}
+  }
+
+  /* picker */
+  .sheet{position:fixed;inset:0;background:rgba(5,6,20,.7);display:none;align-items:flex-end;justify-content:center;z-index:10}
+  .sheet.open{display:flex}
+  .panel{background:#17153a;width:100%;max-width:560px;max-height:88vh;border-radius:20px 20px 0 0;
+         display:flex;flex-direction:column;padding:14px;gap:10px;border:1px solid rgba(255,255,255,.12)}
+  .panel h2{font-size:18px;display:flex;justify-content:space-between;align-items:center}
+  .panel input{width:100%;padding:12px 14px;border-radius:12px;border:1px solid rgba(255,255,255,.2);
+               background:#0e0c28;color:var(--ink);font-size:16px;font-family:inherit}
+  .list{overflow:auto;flex:1;display:flex;flex-direction:column;gap:4px}
+  .item{background:transparent;border:0;color:var(--ink);text-align:right;padding:11px 10px;border-radius:10px;font-size:16px;display:flex;justify-content:space-between}
+  .item:hover,.item.sel{background:rgba(255,200,97,.14)}
+  .item small{color:var(--dim)}
+  details{font-size:14px;color:var(--dim)}
+  details summary{cursor:pointer;padding:4px 0}
+  .row{display:flex;gap:8px;margin-top:8px}
+  .row input{flex:1}
+  .err{color:#ff9b9b;font-size:13px;min-height:16px}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">שעון <span>הנץ</span></div>
+  <div style="display:flex;gap:8px">
+    <button class="btn" id="fsBtn" title="מסך מלא">⛶</button>
+    <button class="btn" id="pickBtn">📍 בחירת מקום</button>
+  </div>
+</header>
+
+<main id="main">
+  <div class="place" id="place">—</div>
+  <div class="label" id="label">הזמן שנותר עד הנץ</div>
+  <div class="clock" id="clock">--<span class="sep">:</span>--<span class="sep">:</span>--</div>
+  <div class="units"><span>שעות</span><span>דקות</span><span>שניות</span></div>
+  <div class="rise" id="rise"></div>
+  <button class="btn" id="floorChip" style="margin-top:4px;font-size:14px">🏢 קומת קרקע</button>
+</main>
+
+<div class="note">החישוב: נץ החמה הנראה לפי המיקום שלך, כולל תיקון לגובה הקומה (בכל קומה גבוהה הנץ מוקדם במעט). דיוק של כדקה; הרים ובניינים באופק יכולים לשנות – לפסק הלכה יש לבדוק בלוח מוסמך.</div>
+
+<div class="sheet" id="sheet">
+  <div class="panel">
+    <h2>בחירת מקום <button class="btn" id="closeBtn">✕</button></h2>
+    <button class="btn" id="geoBtn" style="padding:12px">📡 המיקום שלי עכשיו</button>
+    <div class="row" style="margin-top:0;align-items:center">
+      <label for="floor" style="white-space:nowrap">באיזו קומה אתה?</label>
+      <input id="floor" type="number" inputmode="numeric" min="0" max="200" value="0" style="max-width:110px">
+      <small id="floorInfo" style="color:var(--dim)">קרקע</small>
+    </div>
+    <input id="search" placeholder="חיפוש עיר… (עברית או אנגלית)" autocomplete="off">
+    <div class="list" id="list"></div>
+    <details>
+      <summary>מקום אחר – הזנת קואורדינטות</summary>
+      <div class="row">
+        <input id="lat" inputmode="decimal" placeholder="קו רוחב, למשל 19.43">
+        <input id="lng" inputmode="decimal" placeholder="קו אורך, למשל -99.13">
+      </div>
+      <div class="row">
+        <input id="cname" placeholder="שם המקום (לא חובה)">
+        <button class="btn" id="customBtn">שמור</button>
+      </div>
+      <div class="err" id="err"></div>
+    </details>
+  </div>
+</div>
+
+<script>
+/* ---------- Cities ---------- */
+const C=[
+ ["jerusalem","ירושלים","Jerusalem",31.778,35.235,"Asia/Jerusalem"],
+ ["bnei-brak","בני ברק","Bnei Brak",32.084,34.833,"Asia/Jerusalem"],
+ ["tel-aviv","תל אביב","Tel Aviv",32.085,34.781,"Asia/Jerusalem"],
+ ["haifa","חיפה","Haifa",32.794,34.989,"Asia/Jerusalem"],
+ ["safed","צפת","Safed",32.966,35.496,"Asia/Jerusalem"],
+ ["tiberias","טבריה","Tiberias",32.794,35.531,"Asia/Jerusalem"],
+ ["beit-shemesh","בית שמש","Beit Shemesh",31.747,34.988,"Asia/Jerusalem"],
+ ["beer-sheva","באר שבע","Beer Sheva",31.252,34.791,"Asia/Jerusalem"],
+ ["eilat","אילת","Eilat",29.558,34.952,"Asia/Jerusalem"],
+ ["new-york","ניו יורק","New York",40.7128,-74.006,"America/New_York"],
+ ["lakewood","לייקווד","Lakewood",40.096,-74.217,"America/New_York"],
+ ["miami","מיאמי","Miami",25.7617,-80.1918,"America/New_York"],
+ ["chicago","שיקגו","Chicago",41.8781,-87.6298,"America/Chicago"],
+ ["los-angeles","לוס אנג'לס","Los Angeles",34.0522,-118.2437,"America/Los_Angeles"],
+ ["toronto","טורונטו","Toronto",43.6532,-79.3832,"America/Toronto"],
+ ["montreal","מונטריאול","Montreal",45.5017,-73.5673,"America/Toronto"],
+ ["mexico-city","מקסיקו סיטי","Mexico City",19.4326,-99.1332,"America/Mexico_City"],
+ ["cancun","קנקון","Cancun",21.1619,-86.8515,"America/Cancun"],
+ ["guadalajara","גוודלחרה","Guadalajara",20.6597,-103.3496,"America/Mexico_City"],
+ ["panama","פנמה","Panama City",8.9824,-79.5199,"America/Panama"],
+ ["bogota","בוגוטה","Bogota",4.711,-74.0721,"America/Bogota"],
+ ["lima","לימה","Lima",-12.0464,-77.0428,"America/Lima"],
+ ["sao-paulo","סאו פאולו","Sao Paulo",-23.5505,-46.6333,"America/Sao_Paulo"],
+ ["buenos-aires","בואנוס איירס","Buenos Aires",-34.6037,-58.3816,"America/Argentina/Buenos_Aires"],
+ ["london","לונדון","London",51.5074,-0.1278,"Europe/London"],
+ ["manchester","מנצ'סטר","Manchester",53.4808,-2.2426,"Europe/London"],
+ ["paris","פריז","Paris",48.8566,2.3522,"Europe/Paris"],
+ ["antwerp","אנטוורפן","Antwerp",51.2194,4.4025,"Europe/Brussels"],
+ ["amsterdam","אמסטרדם","Amsterdam",52.3676,4.9041,"Europe/Amsterdam"],
+ ["berlin","ברלין","Berlin",52.52,13.405,"Europe/Berlin"],
+ ["zurich","ציריך","Zurich",47.3769,8.5417,"Europe/Zurich"],
+ ["rome","רומא","Rome",41.9028,12.4964,"Europe/Rome"],
+ ["madrid","מדריד","Madrid",40.4168,-3.7038,"Europe/Madrid"],
+ ["vienna","וינה","Vienna",48.2082,16.3738,"Europe/Vienna"],
+ ["prague","פראג","Prague",50.0755,14.4378,"Europe/Prague"],
+ ["budapest","בודפשט","Budapest",47.4979,19.0402,"Europe/Budapest"],
+ ["warsaw","ורשה","Warsaw",52.2297,21.0122,"Europe/Warsaw"],
+ ["kyiv","קייב","Kyiv",50.4501,30.5234,"Europe/Kyiv"],
+ ["uman","אומן","Uman",48.7484,30.2218,"Europe/Kyiv"],
+ ["moscow","מוסקבה","Moscow",55.7558,37.6173,"Europe/Moscow"],
+ ["athens","אתונה","Athens",37.9838,23.7275,"Europe/Athens"],
+ ["istanbul","איסטנבול","Istanbul",41.0082,28.9784,"Europe/Istanbul"],
+ ["cairo","קהיר","Cairo",30.0444,31.2357,"Africa/Cairo"],
+ ["casablanca","קזבלנקה","Casablanca",33.5731,-7.5898,"Africa/Casablanca"],
+ ["johannesburg","יוהנסבורג","Johannesburg",-26.2041,28.0473,"Africa/Johannesburg"],
+ ["dubai","דובאי","Dubai",25.2048,55.2708,"Asia/Dubai"],
+ ["mumbai","מומבאי","Mumbai",19.076,72.8777,"Asia/Kolkata"],
+ ["delhi","דלהי","Delhi",28.6139,77.209,"Asia/Kolkata"],
+ ["kathmandu","קטמנדו","Kathmandu",27.7172,85.324,"Asia/Kathmandu"],
+ ["bangkok","בנגקוק","Bangkok",13.7563,100.5018,"Asia/Bangkok"],
+ ["singapore","סינגפור","Singapore",1.3521,103.8198,"Asia/Singapore"],
+ ["hong-kong","הונג קונג","Hong Kong",22.3193,114.1694,"Asia/Hong_Kong"],
+ ["shanghai","שנגחאי","Shanghai",31.2304,121.4737,"Asia/Shanghai"],
+ ["beijing","בייג'ינג","Beijing",39.9042,116.4074,"Asia/Shanghai"],
+ ["tokyo","טוקיו","Tokyo",35.6762,139.6503,"Asia/Tokyo"],
+ ["seoul","סיאול","Seoul",37.5665,126.978,"Asia/Seoul"],
+ ["sydney","סידני","Sydney",-33.8688,151.2093,"Australia/Sydney"],
+ ["melbourne","מלבורן","Melbourne",-37.8136,144.9631,"Australia/Melbourne"],
+ ["auckland","אוקלנד","Auckland",-36.8485,174.7633,"Pacific/Auckland"],
+ ["honolulu","הונולולו","Honolulu",21.3069,-157.8583,"Pacific/Honolulu"]
+].map(a=>({id:a[0],he:a[1],en:a[2],lat:a[3],lng:a[4],tz:a[5]}));
+
+/* ---------- Sunrise (NOAA/SunCalc algorithm) ---------- */
+const PI=Math.PI,rad=PI/180,DAY=864e5,J1970=2440588,J2000=2451545,E=rad*23.4397,J0=0.0009;
+const toDays=ms=>ms/DAY-0.5+J1970-J2000;
+const fromJ=j=>(j+0.5-J1970)*DAY;
+function riseNear(ms,lat,lng,hMeters=0){
+  const lw=rad*-lng,phi=rad*lat,d=toDays(ms);
+  const n=Math.round(d-J0-lw/(2*PI));
+  const ds=J0+lw/(2*PI)+n;
+  const M=rad*(357.5291+0.98560028*ds);
+  const Cc=rad*(1.9148*Math.sin(M)+0.02*Math.sin(2*M)+0.0003*Math.sin(3*M));
+  const L=M+Cc+rad*102.9372+PI;
+  const dec=Math.asin(Math.sin(E)*Math.sin(L));
+  const Jnoon=J2000+ds+0.0053*Math.sin(M)-0.0069*Math.sin(2*L);
+  const h0=(-0.833-2.076*Math.sqrt(Math.max(0,hMeters))/60)*rad; // horizon dip for observer height
+  const cosw=(Math.sin(h0)-Math.sin(phi)*Math.sin(dec))/(Math.cos(phi)*Math.cos(dec));
+  if(cosw<-1||cosw>1) return null; // polar day/night
+  const w=Math.acos(cosw);
+  const Jset=J2000+(J0+(w+lw)/(2*PI)+n)+0.0053*Math.sin(M)-0.0069*Math.sin(2*L);
+  return fromJ(Jnoon-(Jset-Jnoon));
+}
+const HOLD=60000; // show 00:00:00 for one minute after sunrise
+function nextRise(now,loc){
+  const set=[];
+  for(let k=-1;k<=370;k++){
+    const r=riseNear(now+k*DAY,loc.lat,loc.lng,heightM());
+    if(r!==null) set.push(r);
+    if(k>=2 && set.some(x=>x>now-HOLD)) break;
+  }
+  set.sort((a,b)=>a-b);
+  return set.find(x=>x>now-HOLD) ?? null;
+}
+
+/* ---------- State ---------- */
+const $=id=>document.getElementById(id);
+let loc=null,target=null;
+let floor=0;
+const FLOOR_M=3; // meters per floor
+const heightM=()=>Math.max(0,floor)*FLOOR_M;
+function store(k,v){try{localStorage.setItem(k,v)}catch(e){}}
+function load(k){try{return localStorage.getItem(k)}catch(e){return null}}
+
+function setLoc(l,save=true){
+  loc=l;target=null;
+  $('place').textContent=l.he;
+  if(save) store('netz-loc',JSON.stringify(l));
+  try{ history.replaceState(null,'',(l.id && !l.custom)?'#'+l.id:location.pathname+location.search); }catch(e){}
+  tick();
+}
+function initialLoc(){
+  const h=location.hash.slice(1);
+  const byHash=C.find(c=>c.id===h); if(byHash) return byHash;
+  const s=load('netz-loc'); if(s){try{return JSON.parse(s)}catch(e){}}
+  let tz=''; try{tz=Intl.DateTimeFormat().resolvedOptions().timeZone}catch(e){}
+  return C.find(c=>c.tz===tz)||C[0];
+}
+
+/* ---------- Render ---------- */
+const pad=n=>String(n).padStart(2,'0');
+function fmtTime(ms,tz){
+  const o={hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false};
+  try{return new Intl.DateTimeFormat('he-IL',{...o,timeZone:tz}).format(ms)}
+  catch(e){return new Intl.DateTimeFormat('he-IL',o).format(ms)}
+}
+function dayWord(ms,tz,now){
+  const f=t=>{try{return new Intl.DateTimeFormat('en-CA',{timeZone:tz,year:'numeric',month:'2-digit',day:'2-digit'}).format(t)}catch(e){return new Date(t).toDateString()}};
+  const a=f(ms);
+  if(a===f(now)) return 'היום';
+  if(a===f(now+DAY)) return 'מחר';
+  try{return new Intl.DateTimeFormat('he-IL',{timeZone:tz,weekday:'long',day:'numeric',month:'long'}).format(ms)}catch(e){return ''}
+}
+function tick(){
+  if(!loc) return;
+  const now=Date.now();
+  if(target===null || now>=target+HOLD) target=nextRise(now,loc);
+  const m=$('main');
+  if(target===null){
+    $('clock').innerHTML='--<span class="sep">:</span>--<span class="sep">:</span>--';
+    $('label').textContent='אין זריחה במקום זה בתקופה הקרובה';
+    $('rise').textContent='';return;
+  }
+  const tz=loc.tz||undefined;
+  if(now>=target){
+    m.classList.add('arrived');
+    $('clock').innerHTML='00<span class="sep">:</span>00<span class="sep">:</span>00';
+    $('label').textContent='☀️ הנץ הגיע!';
+    $('rise').innerHTML='נץ החמה ב־<b>'+fmtTime(target,tz)+'</b>';
+    document.title='☀️ הנץ הגיע – '+loc.he;
+    return;
+  }
+  m.classList.remove('arrived');
+  const s=Math.ceil((target-now)/1000);
+  const hh=Math.floor(s/3600),mm=Math.floor(s%3600/60),ss=s%60;
+  $('clock').innerHTML=pad(hh)+'<span class="sep">:</span>'+pad(mm)+'<span class="sep">:</span>'+pad(ss);
+  $('label').textContent='הזמן שנותר עד הנץ';
+  $('rise').innerHTML='נץ החמה '+dayWord(target,tz,now)+' ב־<b>'+fmtTime(target,tz)+'</b>'+(loc.custom?' <small>(לפי השעון שלך)</small>':' <small>(שעון מקומי)</small>');
+  document.title=pad(hh)+':'+pad(mm)+':'+pad(ss)+' לנץ – '+loc.he;
+}
+setInterval(tick,250);
+
+/* ---------- Picker ---------- */
+function renderList(q=''){
+  q=q.trim().toLowerCase();
+  const items=C.filter(c=>!q||c.he.includes(q)||c.en.toLowerCase().includes(q));
+  $('list').innerHTML=items.map(c=>`<button class="item${loc&&loc.id===c.id?' sel':''}" data-id="${c.id}"><span>${c.he}</span><small>${c.en}</small></button>`).join('')
+    || '<div class="label" style="padding:10px">לא נמצא – אפשר להזין קואורדינטות למטה</div>';
+}
+$('list').addEventListener('click',e=>{
+  const b=e.target.closest('.item'); if(!b) return;
+  setLoc(C.find(c=>c.id===b.dataset.id)); closeSheet();
+});
+function openSheet(){$('search').value='';$('floor').value=floor;renderList();$('sheet').classList.add('open');}
+function closeSheet(){$('sheet').classList.remove('open');}
+$('pickBtn').onclick=openSheet;
+$('closeBtn').onclick=closeSheet;
+$('sheet').addEventListener('click',e=>{if(e.target.id==='sheet')closeSheet()});
+$('search').addEventListener('input',e=>renderList(e.target.value));
+$('customBtn').onclick=()=>{
+  const lat=parseFloat($('lat').value),lng=parseFloat($('lng').value);
+  if(!(lat>=-90&&lat<=90&&lng>=-180&&lng<=180)){$('err').textContent='יש להזין קו רוחב (‎-90 עד 90) וקו אורך (‎-180 עד 180)';return;}
+  $('err').textContent='';
+  let tz; try{tz=Intl.DateTimeFormat().resolvedOptions().timeZone}catch(e){}
+  setLoc({id:'custom',custom:true,he:$('cname').value.trim()||(lat.toFixed(3)+', '+lng.toFixed(3)),lat,lng,tz});
+  closeSheet();
+};
+function useGPS(auto){
+  if(!window.isSecureContext || !navigator.geolocation){
+    const m='המיקום עובד רק כשהאפליקציה פתוחה מאתר (https), לא מקובץ';
+    $('geoBtn').textContent=m; if(auto && loc) $('place').textContent=loc.he; return; }
+  $('geoBtn').textContent='מאתר מיקום…';
+  if(auto) $('place').textContent='📡 מאתר את המיקום שלך…';
+  navigator.geolocation.getCurrentPosition(p=>{
+    $('geoBtn').textContent='📡 המיקום שלי עכשיו';
+    let tz; try{tz=Intl.DateTimeFormat().resolvedOptions().timeZone}catch(e){}
+    setLoc({id:'gps',custom:true,he:'📍 המיקום שלי',lat:p.coords.latitude,lng:p.coords.longitude,tz});
+    closeSheet();
+  },()=>{
+    $('geoBtn').textContent='📡 המיקום שלי – יש לאשר גישה למיקום';
+    if(auto && loc) $('place').textContent=loc.he+' (לא אושר מיקום – אפשר לבחור מקום)';
+  },{enableHighAccuracy:true,timeout:20000,maximumAge:120000});
+}
+$('geoBtn').onclick=()=>useGPS(false);
+// refresh location whenever the app is reopened / brought back to the screen
+document.addEventListener('visibilitychange',()=>{ if(!document.hidden && loc && loc.id==='gps') useGPS(true); });
+function setFloor(f,save=true){
+  floor=Math.max(0,Math.min(200,Math.round(+f||0)));
+  const txt=floor===0?'קומת קרקע':'קומה '+floor+' (כ־'+heightM()+' מ׳ מעל הקרקע)';
+  $('floorChip').textContent='🏢 '+txt; $('floorInfo').textContent=floor===0?'קרקע':'+'+heightM()+' מ׳';
+  if(save) store('netz-floor',String(floor));
+  target=null; tick();
+}
+$('floor').addEventListener('input',e=>setFloor(e.target.value));
+$('floorChip').onclick=()=>{openSheet();setTimeout(()=>$('floor').focus(),50);};
+$('fsBtn').onclick=()=>{
+  try{
+    if(document.fullscreenElement) document.exitFullscreen();
+    else document.documentElement.requestFullscreen().catch(()=>{});
+  }catch(e){}
+};
+window.addEventListener('hashchange',()=>{const c=C.find(x=>x.id===location.hash.slice(1)); if(c && (!loc||loc.id!==c.id)) setLoc(c);});
+
+// Start: show last known place (or a guess by time zone) and immediately locate the person.
+// A city in the link (#mexico-city) is kept instead.
+(function start(){
+  floor=Math.max(0,+load('netz-floor')||0); setTimeout(()=>setFloor(floor,false),0);
+  const first=initialLoc();
+  setLoc(first,false);
+  const fromHash=C.some(c=>c.id===location.hash.slice(1));
+  if(!fromHash) useGPS(true);
+})();
+</script>
+</body>
+</html>
